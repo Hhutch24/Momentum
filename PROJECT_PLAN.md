@@ -51,6 +51,8 @@ To check Tasks, create a weekly task due today and mark it High priority. Use th
 
 To check Planner, create a monthly reminder dated January 31, 2027. Open February in Month view and select its February 28 occurrence. The editor should show January 31 as the series start. Change that start to January 30, save, and navigate to March. The reminder should appear on March 30. Narrow the browser to see the month agenda, then try opening and closing the editor with Enter and Escape.
 
+To check Goals, create a target of 100 pages and add a milestone at 15 pages. Log a 15-page check-in dated today. Goals and Today should both show 15 of 100 pages and one reached milestone, with matching weekly and monthly totals. Use **Set reminder** on the goal and verify that the reminder appears in Planner on its start date.
+
 With both sets of Python dependencies installed, run `.\.venv\Scripts\python.exe -m unittest -v` for the full suite. Run `npm.cmd --prefix frontend run build` to type-check and build the frontend.
 
 ## Completed work and current status
@@ -66,11 +68,12 @@ Verified locally on November 23, 2026. VS Code and Git are available. The worksp
 - **Today migration milestone.** The React, TypeScript, and Tailwind preview has a responsive agenda, date navigation, light and dark themes, summaries, and loading, empty, and retry states. FastAPI exposes a read-only `GET /api/agenda?date=YYYY-MM-DD` endpoint. Both interfaces use the shared Python agenda function. The endpoint reads the existing SQLite schema.
 - **Tasks and Shopping migration milestone.** React adds inline editing, completion and reopening, confirmed deletion, and filters for status, priority, and due date. The dedicated Shopping checklist shares task storage. FastAPI validates task writes and reuses SQLite's recurring-task transaction.
 - **Planner migration milestone.** React has day, week, and month views with date navigation, a monthly agenda on narrow screens, and a keyboard-accessible event dialog. The calendar combines dated tasks with appointments, events, deadlines, birthdays, and reminders. Opening a recurring entry edits the entire series using its original start date. FastAPI validates and stores entries in the existing SQLite tables.
-- **Verification.** Nineteen automated Python tests pass, including the original Streamlit workflow and API tests for recurring series edits across months. The frontend type-check and production build pass. Headless Chrome checks used an isolated SQLite fixture to exercise Today, Tasks, Shopping, and the Planner, including keyboard focus, month navigation, series editing and deletion, and the mobile month agenda.
+- **Goals migration milestone.** React supports creating goals, recording check-ins, adding milestones, and scheduling weekly or monthly check-in reminders through Planner. Today and Goals use the same SQLite calculation for lifetime, weekly, and monthly progress and reached milestone counts.
+- **Verification.** Twenty-one automated Python tests pass, including the original Streamlit workflow and API tests for schedule recurrence and goal summary consistency. The frontend type-check and production build pass. Headless Chrome checked goal creation, milestones, check-ins, reminder scheduling, and deletion on a phone-width viewport, and verified that Today displays the new progress and reminder. Browser checks used temporary SQLite data.
 
 ## Next migration milestone
 
-Migrate Goals and check-ins. Share weekly and monthly progress calculations across the dashboard and goal detail, and verify that both agree after a check-in crosses a milestone.
+Build the universal command preview and confirmation flow. Test scripted proposals before integrating a model. Ambiguous requests should ask a question, cancellation should leave data intact, and confirming the same proposal twice should apply it once.
 
 ## Future expansion
 

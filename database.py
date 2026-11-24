@@ -3,6 +3,8 @@ from contextlib import closing, contextmanager
 from datetime import date, timedelta
 from pathlib import Path
 
+from planner import period_bounds
+
 
 DATABASE_PATH = Path(__file__).with_name("momentum.db")
 _KEEP_DUE_DATE = object()
@@ -187,12 +189,36 @@ def get_goals(db_path=DATABASE_PATH):
         """).fetchall()
 
 
+def get_goal_summaries(day, db_path=DATABASE_PATH, *, goal_id=None):
+    week_start, _ = period_bounds(day, "Week")
+    month_start, _ = period_bounds(day, "Month")
+    with _connect(db_path) as connection:
+        return connection.execute("""
+            WITH progress AS (
+                SELECT goal_id, SUM(amount) AS total,
+                       SUM(CASE WHEN day BETWEEN :week AND :today THEN amount ELSE 0 END) AS week,
+                       SUM(CASE WHEN day BETWEEN :month AND :today THEN amount ELSE 0 END) AS month
+                FROM goal_checkins GROUP BY goal_id
+            )
+            SELECT goals.*, COALESCE(progress.total, 0) AS progress,
+                   COALESCE(progress.week, 0) AS week_progress,
+                   COALESCE(progress.month, 0) AS month_progress,
+                   (SELECT COUNT(*) FROM goal_milestones WHERE goal_id = goals.id) AS milestone_count,
+                   (SELECT COUNT(*) FROM goal_milestones
+                    WHERE goal_id = goals.id AND threshold <= COALESCE(progress.total, 0)) AS milestones_reached
+            FROM goals LEFT JOIN progress ON progress.goal_id = goals.id
+            WHERE :goal_id IS NULL OR goals.id = :goal_id
+            ORDER BY goals.id
+        """, {"week": week_start.isoformat(), "month": month_start.isoformat(),
+              "today": day.isoformat(), "goal_id": goal_id}).fetchall()
+
+
 def add_checkin(goal_id, day, amount, note, db_path=DATABASE_PATH):
     with _connect(db_path) as connection:
-        connection.execute(
-            "INSERT INTO goal_checkins (goal_id, day, amount, note) VALUES (?, ?, ?, ?)",
-            (goal_id, day.isoformat(), amount, note),
-        )
+        return connection.execute(
+            "INSERT INTO goal_checkins (goal_id, day, amount, note) SELECT id, ?, ?, ? FROM goals WHERE id = ?",
+            (day.isoformat(), amount, note, goal_id),
+        ).rowcount == 1
 
 
 def get_checkins(goal_id, db_path=DATABASE_PATH):
@@ -204,10 +230,10 @@ def get_checkins(goal_id, db_path=DATABASE_PATH):
 
 def add_milestone(goal_id, title, threshold, db_path=DATABASE_PATH):
     with _connect(db_path) as connection:
-        connection.execute(
-            "INSERT INTO goal_milestones (goal_id, title, threshold) VALUES (?, ?, ?)",
-            (goal_id, title, threshold),
-        )
+        return connection.execute(
+            "INSERT INTO goal_milestones (goal_id, title, threshold) SELECT id, ?, ? FROM goals WHERE id = ?",
+            (title, threshold, goal_id),
+        ).rowcount == 1
 
 
 def get_milestones(goal_id, db_path=DATABASE_PATH):
@@ -219,4 +245,4 @@ def get_milestones(goal_id, db_path=DATABASE_PATH):
 
 def delete_goal(goal_id, db_path=DATABASE_PATH):
     with _connect(db_path) as connection:
-        connection.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
+        return connection.execute("DELETE FROM goals WHERE id = ?", (goal_id,)).rowcount == 1

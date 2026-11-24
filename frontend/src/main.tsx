@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   AlertCircle, Bell, CalendarDays, Check, ChevronLeft, ChevronRight,
-  Circle, Clock3, ListTodo, Moon, ShoppingBasket, Sun, Zap,
+  Circle, Clock3, ListTodo, Moon, ShoppingBasket, Sun, Target, Zap,
 } from 'lucide-react'
 import './styles.css'
 import { TaskList } from './TaskList'
 import { Planner } from './Planner'
 import { localDay } from './dates'
+import { Goals, GoalsOverview } from './Goals'
 
 type AgendaItem = {
   id: number
@@ -43,7 +44,8 @@ function AgendaRow({ item }: { item: AgendaItem }) {
 }
 
 function App() {
-  const [page, setPage] = useState<'Today' | 'Planner' | 'Tasks' | 'Shopping'>('Today')
+  const [page, setPage] = useState<'Today' | 'Planner' | 'Tasks' | 'Shopping' | 'Goals'>('Today')
+  const today = localDay(new Date())
   const [todayVisit, setTodayVisit] = useState(0)
   const [theme, setTheme] = useState(() => localStorage.getItem('momentum-theme')
     ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
@@ -58,7 +60,7 @@ function App() {
       <div className="brand"><span className="brand-icon"><Zap size={18} aria-hidden="true" /></span>Momentum</div>
       <nav className="workspace-nav" aria-label="Workspace">
         {([{ label: 'Today', Icon: CalendarDays }, { label: 'Planner', Icon: Clock3 }, { label: 'Tasks', Icon: ListTodo },
-          { label: 'Shopping', Icon: ShoppingBasket }] as const).map(({ label, Icon }) =>
+          { label: 'Shopping', Icon: ShoppingBasket }, { label: 'Goals', Icon: Target }] as const).map(({ label, Icon }) =>
           <button key={label} className="nav-item" type="button" aria-current={page === label ? 'page' : undefined} onClick={() => {
             setPage(label)
             if (label === 'Today') setTodayVisit(count => count + 1)
@@ -73,7 +75,7 @@ function App() {
     </aside>
     <main className="content">
       {page === 'Today' ? <Today key={todayVisit} /> : page === 'Planner' ? <Planner />
-        : <TaskList key={page} listName={page} today={localDay(new Date())} />}
+        : page === 'Goals' ? <Goals today={today} /> : <TaskList key={page} listName={page} today={today} />}
     </main>
   </div>
 }
@@ -149,6 +151,7 @@ function Today() {
           </div>
         </section>}
       </div>
+      <GoalsOverview today={today} />
   </>
 }
 

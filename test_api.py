@@ -127,3 +127,33 @@ class AgendaApiTests(unittest.TestCase):
         self.assertEqual(self.client.post("/api/schedule", json={
             "title": "Meeting", "kind": "Appointment", "day": str(self.day), "event_time": "09:00:00Z",
         }).status_code, 422)
+
+    def test_goal_summary_and_detail_agree_after_crossing_a_milestone(self):
+        created = self.client.post("/api/goals", json={"title": "Read more", "target": 100, "unit": "pages"})
+        self.assertEqual(created.status_code, 201)
+        path = f"/api/goals/{created.json()['id']}"
+        self.assertEqual(self.client.post(path + "/milestones", json={"title": "First chapter", "threshold": 15}).status_code, 204)
+
+        for day, amount in (("2024-08-31", 5), ("2024-09-08", 6), ("2024-09-09", 4)):
+            result = self.client.post(path + "/checkins", json={"day": day, "amount": amount, "note": "Read"})
+            self.assertEqual(result.status_code, 204)
+
+        query = "?day=2024-09-09"
+        dashboard = self.client.get("/api/goals" + query).json()[0]
+        detail = self.client.get(path + query).json()
+        self.assertEqual((dashboard["progress"], dashboard["week_progress"], dashboard["month_progress"]), (15, 4, 10))
+        self.assertEqual(dashboard["milestones_reached"], 1)
+        self.assertEqual({field: detail[field] for field in dashboard}, dashboard)
+        self.assertTrue(detail["milestones"][0]["reached"])
+        self.assertEqual([row["amount"] for row in detail["checkins"]], [4, 6, 5])
+        self.assertEqual(self.client.delete(path).status_code, 204)
+        self.assertEqual(self.client.get(path + query).status_code, 404)
+        self.assertEqual(db.get_checkins(created.json()["id"], self.path), [])
+
+    def test_goal_input_validation(self):
+        self.assertEqual(self.client.post("/api/goals", json={"title": "   ", "target": 1}).status_code, 422)
+        self.assertEqual(self.client.post("/api/goals", json={"title": "Read", "target": 0}).status_code, 422)
+        path = "/api/goals/999/checkins"
+        self.assertEqual(self.client.post(path, json={"day": "2024-09-09", "amount": -1}).status_code, 422)
+        self.assertEqual(self.client.post(path, json={"day": "9999-12-31", "amount": 1}).status_code, 422)
+        self.assertEqual(self.client.post(path, json={"day": "2024-09-09", "amount": 1}).status_code, 404)

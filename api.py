@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from agenda import get_agenda
 from database import DATABASE_PATH
+from goal_api import goal_router
 from planner import period_bounds
 from schedule_api import schedule_router
 from task_api import task_router
@@ -44,10 +45,11 @@ class PlannerPeriod(BaseModel):
 
 def create_app(db_path: Path = DATABASE_PATH):
     api = FastAPI(title="Momentum API")
-    # SQLite enforces read-only access, including when the file is missing.
+    # SQLite enforces read-only access on GET routes and opens existing files only.
     database_uri = db_path.resolve().as_uri()
     api.include_router(task_router(database_uri + "?mode=rw"))
     api.include_router(schedule_router(database_uri + "?mode=rw"))
+    api.include_router(goal_router(database_uri))
 
     @api.exception_handler(sqlite3.OperationalError)
     async def database_unavailable(_request: Request, _error: sqlite3.OperationalError):
