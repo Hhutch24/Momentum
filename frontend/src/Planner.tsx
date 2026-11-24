@@ -131,7 +131,7 @@ function Entries({ items, onEdit }: { items: CalendarItem[]; onEdit: (item: Cale
   })}</ul>
 }
 
-export function Planner() {
+export function Planner({ commandRevision }: { commandRevision: number }) {
   const today = localDay(new Date())
   const [day, setDay] = useState(today)
   const [view, setView] = useState<View>('Week')
@@ -139,7 +139,7 @@ export function Planner() {
   const [revision, setRevision] = useState(0)
   const [editor, setEditor] = useState<Editor | null>(null)
   const [feedback, setFeedback] = useState('')
-  const key = `${day}-${view}-${revision}`
+  const key = `${day}-${view}-${revision}-${commandRevision}`
 
   useEffect(() => {
     const controller = new AbortController()

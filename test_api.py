@@ -1,4 +1,5 @@
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, time
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -157,3 +158,61 @@ class AgendaApiTests(unittest.TestCase):
         self.assertEqual(self.client.post(path, json={"day": "2024-09-09", "amount": -1}).status_code, 422)
         self.assertEqual(self.client.post(path, json={"day": "9999-12-31", "amount": 1}).status_code, 422)
         self.assertEqual(self.client.post(path, json={"day": "2024-09-09", "amount": 1}).status_code, 404)
+
+    def preview(self, text):
+        response = self.client.post("/api/commands/preview", json={"text": text, "today": "2024-09-09"})
+        self.assertEqual(response.status_code, 200)
+        return response.json()
+
+    def test_command_batch_confirmation_is_persistent_and_retry_safe(self):
+        preview = self.preview("I need bananas; Remind me to shop tomorrow; Add task Study due tomorrow")
+        self.assertEqual(preview["state"], "preview")
+        self.assertEqual(len(preview["actions"]), 3)
+        self.assertEqual(db.get_tasks(self.path), [])
+        self.assertEqual(db.get_schedule(self.path), [])
+
+        path = f"/api/commands/{preview['proposal_id']}/confirm"
+
+        def confirm():
+            with TestClient(create_app(self.path)) as client:
+                return client.post(path).json()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            self.assertEqual(list(executor.map(lambda _: confirm(), range(2))), [{"state": "applied"}] * 2)
+
+        self.assertEqual([task["title"] for task in db.get_tasks(self.path)], ["bananas", "Study"])
+        schedule = db.get_schedule(self.path)
+        self.assertEqual([(entry["title"], entry["day"]) for entry in schedule], [("shop", "2024-09-10")])
+        agenda = self.preview("What's coming up this week?")
+        self.assertEqual([item["title"] for item in agenda["items"]], ["shop", "Study"])
+
+    def test_command_clarification_and_cancellation_leave_domain_data_intact(self):
+        first = db.create_goal("Reading", 100, "pages", self.path)
+        second = db.create_goal("Reading", 50, "pages", self.path)
+        self.assertEqual(self.preview("Remind me to call Sam")["state"], "clarification")
+        unclear = self.preview("Log 15 toward Reading")
+        self.assertEqual(unclear["state"], "clarification")
+        self.assertIn(f"Goal #{first}, Goal #{second}", unclear["message"])
+
+        preview = self.preview(f"Log 15 toward Goal #{second}")
+        path = f"/api/commands/{preview['proposal_id']}"
+        self.assertEqual(self.client.post(path + "/cancel").json(), {"state": "cancelled"})
+        self.assertEqual(self.client.post(path + "/confirm").status_code, 409)
+        self.assertEqual(db.get_checkins(second, self.path), [])
+
+    def test_command_rolls_back_batch_if_a_target_disappears(self):
+        goal = db.create_goal("Reading", 100, "pages", self.path)
+        preview = self.preview("Add event Book club on tomorrow; Add milestone Chapter one at 15 for Reading")
+        db.delete_goal(goal, self.path)
+        result = self.client.post(f"/api/commands/{preview['proposal_id']}/confirm")
+        self.assertEqual(result.status_code, 409)
+        self.assertEqual(db.get_schedule(self.path), [])
+
+    def test_command_creates_goal_and_applies_progress_and_milestone(self):
+        goal = self.preview("Add goal Reading target 100 pages")
+        self.assertEqual(self.client.post(f"/api/commands/{goal['proposal_id']}/confirm").status_code, 200)
+        progress = self.preview("Log 15 toward Reading; Add milestone Chapter one at 15 for Reading")
+        self.assertEqual(self.client.post(f"/api/commands/{progress['proposal_id']}/confirm").status_code, 200)
+        saved = self.client.get("/api/goals?day=2024-09-09").json()[0]
+        self.assertEqual((saved["progress"], saved["target"], saved["unit"], saved["milestones_reached"]),
+                         (15, 100, "pages", 1))

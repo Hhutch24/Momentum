@@ -53,6 +53,8 @@ To check Planner, create a monthly reminder dated January 31, 2027. Open Februar
 
 To check Goals, create a target of 100 pages and add a milestone at 15 pages. Log a 15-page check-in dated today. Goals and Today should both show 15 of 100 pages and one reached milestone, with matching weekly and monthly totals. Use **Set reminder** on the goal and verify that the reminder appears in Planner on its start date.
 
+To check the command box, open Shopping and enter `I need bananas; Add task Study due tomorrow`. Run the command and verify the two changes are listed in the preview. Cancel and confirm that Shopping stays as it was. Run it again and confirm. One banana item should appear in Shopping and one Study task should appear in Tasks. Try `Remind me to call Sam` to see the date clarification.
+
 With both sets of Python dependencies installed, run `.\.venv\Scripts\python.exe -m unittest -v` for the full suite. Run `npm.cmd --prefix frontend run build` to type-check and build the frontend.
 
 ## Completed work and current status
@@ -69,11 +71,12 @@ Verified locally on November 23, 2026. VS Code and Git are available. The worksp
 - **Tasks and Shopping migration milestone.** React adds inline editing, completion and reopening, confirmed deletion, and filters for status, priority, and due date. The dedicated Shopping checklist shares task storage. FastAPI validates task writes and reuses SQLite's recurring-task transaction.
 - **Planner migration milestone.** React has day, week, and month views with date navigation, a monthly agenda on narrow screens, and a keyboard-accessible event dialog. The calendar combines dated tasks with appointments, events, deadlines, birthdays, and reminders. Opening a recurring entry edits the entire series using its original start date. FastAPI validates and stores entries in the existing SQLite tables.
 - **Goals migration milestone.** React supports creating goals, recording check-ins, adding milestones, and scheduling weekly or monthly check-in reminders through Planner. Today and Goals use the same SQLite calculation for lifetime, weekly, and monthly progress and reached milestone counts.
-- **Verification.** Twenty-one automated Python tests pass, including the original Streamlit workflow and API tests for schedule recurrence and goal summary consistency. The frontend type-check and production build pass. Headless Chrome checked goal creation, milestones, check-ins, reminder scheduling, and deletion on a phone-width viewport, and verified that Today displays the new progress and reminder. Browser checks used temporary SQLite data.
+- **Command preview milestone.** Every React screen has a command box with examples, clarification questions, read-only schedule answers, and a preview for up to five scripted changes. SQLite creates a proposal table on the first write preview. Pending proposals expire after 30 minutes. Confirmation applies the stored actions and records their status in one transaction so repeated confirmation cannot duplicate a change.
+- **Verification.** Twenty-five automated Python tests pass, including tests for simultaneous confirmation, cancellation, and batch rollback. The frontend type-check and production build pass. Headless Chrome verified keyboard access, clarification, cancellation, batch confirmation, list refresh, and schedule results using temporary SQLite data.
 
 ## Next migration milestone
 
-Build the universal command preview and confirmation flow. Test scripted proposals before integrating a model. Ambiguous requests should ask a question, cancellation should leave data intact, and confirming the same proposal twice should apply it once.
+Integrate a model behind the existing preview and confirmation flow and build a portfolio demo. Evaluate structured proposals against scripted fixtures before testing live API calls. Keep credentials in the backend environment and measure usage with a small set of representative commands.
 
 ## Future expansion
 

@@ -63,9 +63,9 @@ function GoalProgress({ goal }: { goal: Goal }) {
   </div>
 }
 
-export function GoalsOverview({ today }: { today: string }) {
+export function GoalsOverview({ today, commandRevision }: { today: string; commandRevision: number }) {
   const [revision, setRevision] = useState(0)
-  const goals = useGoalData<Goal[]>(`/api/goals?day=${today}`, revision)
+  const goals = useGoalData<Goal[]>(`/api/goals?day=${today}`, revision + commandRevision)
   return <section className="panel goals-overview" aria-labelledby="goal-overview-title" aria-busy={goals === undefined}>
     <div className="panel-header"><h2 id="goal-overview-title">Goals</h2><Target size={19} aria-hidden="true" /></div>
     {goals === undefined ? <p className="goal-message" role="status">Loading goals…</p>
@@ -180,14 +180,14 @@ function GoalDetails({ goalId, today, revision, onChange, onDelete }: {
   </section>
 }
 
-export function Goals({ today }: { today: string }) {
+export function Goals({ today, commandRevision }: { today: string; commandRevision: number }) {
   const [revision, setRevision] = useState(0)
   const [selected, setSelected] = useState<number | null>(null)
   const [adding, setAdding] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [feedback, setFeedback] = useState('')
-  const goals = useGoalData<Goal[]>(`/api/goals?day=${today}`, revision)
+  const goals = useGoalData<Goal[]>(`/api/goals?day=${today}`, revision + commandRevision)
   const active = goals?.find(goal => goal.id === selected) ?? goals?.[0]
 
   function refresh(message: string) {
@@ -239,7 +239,7 @@ export function Goals({ today }: { today: string }) {
             <Target size={17} aria-hidden="true" /> <span>{goal.title}</span>
           </button>)}
         </section>
-        <GoalDetails key={active.id} goalId={active.id} today={today} revision={revision} onChange={refresh}
+        <GoalDetails key={active.id} goalId={active.id} today={today} revision={revision + commandRevision} onChange={refresh}
           onDelete={() => { setSelected(null); refresh('Goal deleted.') }} />
       </div>}
   </>

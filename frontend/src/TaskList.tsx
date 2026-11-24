@@ -55,7 +55,7 @@ function TaskEditor({ task, shopping, busy, onCancel, onSave }: {
   </form>
 }
 
-export function TaskList({ listName, today }: { listName: ListName; today: string }) {
+export function TaskList({ listName, today, commandRevision }: { listName: ListName; today: string; commandRevision: number }) {
   const shopping = listName === 'Shopping'
   const noun = shopping ? 'item' : 'task'
   const [tasks, setTasks] = useState<Task[]>([])
@@ -88,7 +88,7 @@ export function TaskList({ listName, today }: { listName: ListName; today: strin
     }
     void load()
     return () => controller.abort()
-  }, [listName, reload, shopping])
+  }, [listName, reload, shopping, commandRevision])
 
   const visible = tasks.filter(task => shopping || (
     (view !== 'Open tasks' || !task.completed) &&

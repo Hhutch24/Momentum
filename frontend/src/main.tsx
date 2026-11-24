@@ -9,6 +9,7 @@ import { TaskList } from './TaskList'
 import { Planner } from './Planner'
 import { localDay } from './dates'
 import { Goals, GoalsOverview } from './Goals'
+import { CommandBox } from './CommandBox'
 
 type AgendaItem = {
   id: number
@@ -47,6 +48,7 @@ function App() {
   const [page, setPage] = useState<'Today' | 'Planner' | 'Tasks' | 'Shopping' | 'Goals'>('Today')
   const today = localDay(new Date())
   const [todayVisit, setTodayVisit] = useState(0)
+  const [commandRevision, setCommandRevision] = useState(0)
   const [theme, setTheme] = useState(() => localStorage.getItem('momentum-theme')
     ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
 
@@ -74,13 +76,14 @@ function App() {
       </button>
     </aside>
     <main className="content">
-      {page === 'Today' ? <Today key={todayVisit} /> : page === 'Planner' ? <Planner />
-        : page === 'Goals' ? <Goals today={today} /> : <TaskList key={page} listName={page} today={today} />}
+      <CommandBox today={today} onApplied={() => setCommandRevision(value => value + 1)} />
+      {page === 'Today' ? <Today key={todayVisit} commandRevision={commandRevision} /> : page === 'Planner' ? <Planner commandRevision={commandRevision} />
+        : page === 'Goals' ? <Goals today={today} commandRevision={commandRevision} /> : <TaskList key={page} listName={page} today={today} commandRevision={commandRevision} />}
     </main>
   </div>
 }
 
-function Today() {
+function Today({ commandRevision }: { commandRevision: number }) {
   const today = localDay(new Date())
   const [day, setDay] = useState(today)
   const [attempt, setAttempt] = useState(0)
@@ -101,7 +104,7 @@ function Today() {
     }
     void loadAgenda()
     return () => controller.abort()
-  }, [day, attempt])
+  }, [day, attempt, commandRevision])
 
   const current = state.day === day ? state : { day, status: 'loading' as const }
   const selectedDate = new Date(`${day}T12:00:00`)
@@ -151,7 +154,7 @@ function Today() {
           </div>
         </section>}
       </div>
-      <GoalsOverview today={today} />
+      <GoalsOverview today={today} commandRevision={commandRevision} />
   </>
 }
 

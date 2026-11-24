@@ -82,11 +82,14 @@ def create_task(title, db_path=DATABASE_PATH, *, due_date=None, list_name="Tasks
     if repeat != "None" and due_date is None:
         raise ValueError("Choose a due date for a repeating task.")
     with _connect(db_path) as connection:
-        cursor = connection.execute(
-            "INSERT INTO tasks (title, due_date, list_name, priority, repeat) VALUES (?, ?, ?, ?, ?)",
-            (title, due_date.isoformat() if due_date else None, list_name, priority, repeat),
-        )
-        return cursor.lastrowid
+        return insert_task(connection, title, due_date, list_name, priority, repeat)
+
+
+def insert_task(connection, title, due_date=None, list_name="Tasks", priority="Normal", repeat="None"):
+    return connection.execute(
+        "INSERT INTO tasks (title, due_date, list_name, priority, repeat) VALUES (?, ?, ?, ?, ?)",
+        (title, due_date.isoformat() if due_date else None, list_name, priority, repeat),
+    ).lastrowid
 
 
 def get_tasks(db_path=DATABASE_PATH, *, list_name=None):
@@ -150,17 +153,21 @@ def delete_task(task_id, db_path=DATABASE_PATH):
 
 
 def save_schedule(title, kind, day, event_time, repeat, db_path=DATABASE_PATH, *, entry_id=None):
-    values = (title, kind, day.isoformat(), event_time.isoformat(timespec="minutes") if event_time else None, repeat)
     with _connect(db_path) as connection:
         if entry_id is None:
-            cursor = connection.execute(
-                "INSERT INTO schedule (title, kind, day, time, repeat) VALUES (?, ?, ?, ?, ?)", values
-            )
-            return cursor.lastrowid
+            return insert_schedule(connection, title, kind, day, event_time, repeat)
+        event_clock = event_time.isoformat(timespec="minutes") if event_time else None
         return connection.execute(
             "UPDATE schedule SET title = ?, kind = ?, day = ?, time = ?, repeat = ? WHERE id = ?",
-            (*values, entry_id),
+            (title, kind, day.isoformat(), event_clock, repeat, entry_id),
         ).rowcount == 1
+
+
+def insert_schedule(connection, title, kind, day, event_time, repeat):
+    return connection.execute(
+        "INSERT INTO schedule (title, kind, day, time, repeat) VALUES (?, ?, ?, ?, ?)",
+        (title, kind, day.isoformat(), event_time.isoformat(timespec="minutes") if event_time else None, repeat),
+    ).lastrowid
 
 
 def get_schedule(db_path=DATABASE_PATH):
@@ -175,9 +182,13 @@ def delete_schedule(entry_id, db_path=DATABASE_PATH):
 
 def create_goal(title, target, unit, db_path=DATABASE_PATH):
     with _connect(db_path) as connection:
-        return connection.execute(
-            "INSERT INTO goals (title, target, unit) VALUES (?, ?, ?)", (title, target, unit)
-        ).lastrowid
+        return insert_goal(connection, title, target, unit)
+
+
+def insert_goal(connection, title, target, unit):
+    return connection.execute(
+        "INSERT INTO goals (title, target, unit) VALUES (?, ?, ?)", (title, target, unit)
+    ).lastrowid
 
 
 def get_goals(db_path=DATABASE_PATH):
@@ -215,10 +226,14 @@ def get_goal_summaries(day, db_path=DATABASE_PATH, *, goal_id=None):
 
 def add_checkin(goal_id, day, amount, note, db_path=DATABASE_PATH):
     with _connect(db_path) as connection:
-        return connection.execute(
-            "INSERT INTO goal_checkins (goal_id, day, amount, note) SELECT id, ?, ?, ? FROM goals WHERE id = ?",
-            (day.isoformat(), amount, note, goal_id),
-        ).rowcount == 1
+        return insert_checkin(connection, goal_id, day, amount, note)
+
+
+def insert_checkin(connection, goal_id, day, amount, note):
+    return connection.execute(
+        "INSERT INTO goal_checkins (goal_id, day, amount, note) SELECT id, ?, ?, ? FROM goals WHERE id = ?",
+        (day.isoformat(), amount, note, goal_id),
+    ).rowcount == 1
 
 
 def get_checkins(goal_id, db_path=DATABASE_PATH):
@@ -230,10 +245,14 @@ def get_checkins(goal_id, db_path=DATABASE_PATH):
 
 def add_milestone(goal_id, title, threshold, db_path=DATABASE_PATH):
     with _connect(db_path) as connection:
-        return connection.execute(
-            "INSERT INTO goal_milestones (goal_id, title, threshold) SELECT id, ?, ? FROM goals WHERE id = ?",
-            (title, threshold, goal_id),
-        ).rowcount == 1
+        return insert_milestone(connection, goal_id, title, threshold)
+
+
+def insert_milestone(connection, goal_id, title, threshold):
+    return connection.execute(
+        "INSERT INTO goal_milestones (goal_id, title, threshold) SELECT id, ?, ? FROM goals WHERE id = ?",
+        (title, threshold, goal_id),
+    ).rowcount == 1
 
 
 def get_milestones(goal_id, db_path=DATABASE_PATH):

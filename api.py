@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from agenda import get_agenda
+from command_api import command_router
 from database import DATABASE_PATH
 from goal_api import goal_router
 from planner import period_bounds
@@ -50,6 +51,7 @@ def create_app(db_path: Path = DATABASE_PATH):
     api.include_router(task_router(database_uri + "?mode=rw"))
     api.include_router(schedule_router(database_uri + "?mode=rw"))
     api.include_router(goal_router(database_uri))
+    api.include_router(command_router(database_uri + "?mode=rw"))
 
     @api.exception_handler(sqlite3.OperationalError)
     async def database_unavailable(_request: Request, _error: sqlite3.OperationalError):
