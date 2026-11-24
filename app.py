@@ -4,6 +4,7 @@ from datetime import date, time, timedelta
 import streamlit as st
 
 import database as db
+from agenda import get_agenda
 from commands import parse_command
 from planner import RECURRENCE, period_bounds, repeat_date, scheduled_occurrences
 
@@ -91,16 +92,13 @@ def begin_task_edit(task_id):
 
 def agenda(first, last):
     items = []
-    for day, entry in scheduled_occurrences(db.get_schedule(), first, last):
-        label = f"{entry['time']} · " if entry["time"] else ""
-        items.append((day, f"{label}{entry['kind']} · {entry['title']}"))
-    for task in db.get_tasks():
-        if task["list_name"] == "Tasks" and task["due_date"]:
-            day = date.fromisoformat(task["due_date"])
-            if first <= day <= last:
-                label = "Completed task" if task["completed"] else "Task due"
-                items.append((day, f"{label} · {task['title']}"))
-    return sorted(items, key=lambda item: item[0])
+    for entry in get_agenda(first, last):
+        kind = entry["kind"]
+        if entry["source"] == "task":
+            kind = "Completed task" if entry["completed"] else "Task due"
+        start_time = f"{entry['time']} · " if entry["time"] else ""
+        items.append((entry["date"], f"{start_time}{kind} · {entry['title']}"))
+    return items
 
 
 def show_agenda(first, last):

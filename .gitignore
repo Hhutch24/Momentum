@@ -16,3 +16,7 @@ __pycache__/
 
 # Streamlit secrets
 .streamlit/secrets.toml
+
+# React build and dependencies
+frontend/dist/
+frontend/node_modules/

@@ -12,7 +12,7 @@ TASK_REPEAT = ("None", "Daily", "Weekly")
 
 @contextmanager
 def _connect(db_path):
-    with closing(sqlite3.connect(db_path)) as connection:
+    with closing(sqlite3.connect(db_path, uri=True)) as connection:
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
         # Commit writes on success or roll them back if an error occurs.
@@ -87,12 +87,14 @@ def create_task(title, db_path=DATABASE_PATH, *, due_date=None, list_name="Tasks
         return cursor.lastrowid
 
 
-def get_tasks(db_path=DATABASE_PATH):
+def get_tasks(db_path=DATABASE_PATH, *, list_name=None):
+    query = "SELECT id, title, completed, created_at, due_date, list_name, priority, repeat FROM tasks"
+    params = ()
+    if list_name is not None:
+        query += " WHERE list_name = ?"
+        params = (list_name,)
     with _connect(db_path) as connection:
-        return connection.execute(
-            "SELECT id, title, completed, created_at, due_date, list_name, priority, repeat "
-            "FROM tasks ORDER BY id"
-        ).fetchall()
+        return connection.execute(query + " ORDER BY id", params).fetchall()
 
 
 def update_task_title(task_id, title, db_path=DATABASE_PATH, *, due_date=_KEEP_DUE_DATE,
@@ -105,7 +107,7 @@ def update_task_title(task_id, title, db_path=DATABASE_PATH, *, due_date=_KEEP_D
         connection.execute("BEGIN IMMEDIATE")
         task = connection.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
         if task is None:
-            return
+            return False
         saved_date = task["due_date"]
         if due_date is not _KEEP_DUE_DATE:
             saved_date = due_date.isoformat() if due_date else None
@@ -116,17 +118,20 @@ def update_task_title(task_id, title, db_path=DATABASE_PATH, *, due_date=_KEEP_D
             "UPDATE tasks SET title = ?, due_date = ?, priority = ?, repeat = ? WHERE id = ?",
             (title, saved_date, priority or task["priority"], repeat, task_id),
         )
+        return True
 
 
 def update_task_completion(task_id, completed, db_path=DATABASE_PATH):
     with _connect(db_path) as connection:
         connection.execute("BEGIN IMMEDIATE")
         task = connection.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        if task is None:
+            return False
         connection.execute(
             "UPDATE tasks SET completed = ? WHERE id = ?",
             (int(completed), task_id),
         )
-        if task and completed and not task["completed"] and not task["repeat_created"] and task["repeat"] != "None":
+        if completed and not task["completed"] and not task["repeat_created"] and task["repeat"] != "None":
             interval = 7 if task["repeat"] == "Weekly" else 1
             next_date = date.fromisoformat(task["due_date"]) + timedelta(days=interval)
             connection.execute(
@@ -134,11 +139,12 @@ def update_task_completion(task_id, completed, db_path=DATABASE_PATH):
                 (task["title"], next_date.isoformat(), task["list_name"], task["priority"], task["repeat"]),
             )
             connection.execute("UPDATE tasks SET repeat_created = 1 WHERE id = ?", (task_id,))
+        return True
 
 
 def delete_task(task_id, db_path=DATABASE_PATH):
     with _connect(db_path) as connection:
-        connection.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        return connection.execute("DELETE FROM tasks WHERE id = ?", (task_id,)).rowcount == 1
 
 
 def save_schedule(title, kind, day, event_time, repeat, db_path=DATABASE_PATH, *, entry_id=None):
@@ -149,10 +155,10 @@ def save_schedule(title, kind, day, event_time, repeat, db_path=DATABASE_PATH, *
                 "INSERT INTO schedule (title, kind, day, time, repeat) VALUES (?, ?, ?, ?, ?)", values
             )
             return cursor.lastrowid
-        connection.execute(
+        return connection.execute(
             "UPDATE schedule SET title = ?, kind = ?, day = ?, time = ?, repeat = ? WHERE id = ?",
             (*values, entry_id),
-        )
+        ).rowcount == 1
 
 
 def get_schedule(db_path=DATABASE_PATH):
@@ -162,7 +168,7 @@ def get_schedule(db_path=DATABASE_PATH):
 
 def delete_schedule(entry_id, db_path=DATABASE_PATH):
     with _connect(db_path) as connection:
-        connection.execute("DELETE FROM schedule WHERE id = ?", (entry_id,))
+        return connection.execute("DELETE FROM schedule WHERE id = ?", (entry_id,)).rowcount == 1
 
 
 def create_goal(title, target, unit, db_path=DATABASE_PATH):
