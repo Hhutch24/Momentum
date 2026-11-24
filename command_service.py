@@ -112,8 +112,18 @@ def preview_command(text, today, db_path):
             if today.year == date.max.year and today.month == date.max.month:
                 return {"state": "clarification", "message": "Which earlier month would you like to view?"}
             first, last = period_bounds(repeat_date(today.replace(day=1), "Monthly", 1), "Month")
-        return {"state": "agenda", "first": first, "last": last, "items": get_agenda(first, last, db_path=db_path)}
+        return agenda_result(first, last, db_path)
 
+    return store_proposal(actions, db_path)
+
+
+def agenda_result(first, last, db_path):
+    if not 0 <= (last - first).days <= 30:
+        raise ValueError("Choose a schedule range of up to 31 days.")
+    return {"state": "agenda", "first": first, "last": last, "items": get_agenda(first, last, db_path=db_path)}
+
+
+def store_proposal(actions, db_path):
     proposal_id = uuid4().hex
     expires = datetime.now(timezone.utc) + timedelta(minutes=30)
     with db._connect(db_path) as connection:
@@ -151,6 +161,13 @@ def apply_action(item, connection):
             db.insert_schedule(connection, **ScheduleEntry.model_validate(values).model_dump())
         case "goal":
             db.insert_goal(connection, **GoalInput.model_validate(values).model_dump())
+        case "rename":
+            updated = connection.execute(
+                "UPDATE tasks SET title = ? WHERE id = ? AND list_name = 'Tasks' AND title = ?",
+                (values["title"], item["task_id"], item["original_title"]),
+            ).rowcount
+            if not updated:
+                raise ProposalError("A task in this proposal changed. Run the command again.", 409)
         case "checkin" | "milestone":
             if item["kind"] == "checkin":
                 saved = db.insert_checkin(connection, item["goal_id"], **CheckinInput.model_validate(values).model_dump())

@@ -21,6 +21,8 @@ export function CommandBox({ today, onApplied }: { today: string; onApplied: () 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [feedback, setFeedback] = useState('')
+  const [aiEnabled, setAiEnabled] = useState(false)
+  const [mode, setMode] = useState<'local' | 'ai'>('local')
   const preview = result?.state === 'preview' ? result : null
 
   useEffect(() => {
@@ -34,6 +36,21 @@ export function CommandBox({ today, onApplied }: { today: string; onApplied: () 
     return () => window.removeEventListener('keydown', focusCommand)
   }, [])
 
+  useEffect(() => {
+    const controller = new AbortController()
+    async function loadConfig() {
+      try {
+        const response = await request('/api/commands/config', { signal: controller.signal })
+        const config = await response.json()
+        if (!controller.signal.aborted) setAiEnabled(config.ai_enabled === true)
+      } catch {
+        // The local command box can still retry when the backend returns.
+      }
+    }
+    void loadConfig()
+    return () => controller.abort()
+  }, [])
+
   async function run(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!text.trim() || busy || preview) return
@@ -44,7 +61,7 @@ export function CommandBox({ today, onApplied }: { today: string; onApplied: () 
     try {
       const response = await request('/api/commands/preview', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.trim(), today }),
+        body: JSON.stringify({ text: text.trim(), today, mode }),
       })
       setResult(await response.json())
     } catch (failure) {
@@ -88,10 +105,20 @@ export function CommandBox({ today, onApplied }: { today: string; onApplied: () 
       </label>
       <button type="submit" className="primary-button" disabled={busy || !!preview || !text.trim()}>{busy && !preview ? 'Checking…' : 'Run command'}</button>
     </form>
+    {aiEnabled && <div className="command-mode">
+      <label htmlFor="command-mode">Command mode</label>
+      <select id="command-mode" value={mode} disabled={busy || !!preview} onChange={event => {
+        setMode(event.target.value === 'ai' ? 'ai' : 'local')
+        setResult(null)
+        setFeedback('')
+        setError('')
+      }}><option value="local">Local</option><option value="ai">AI</option></select>
+      {mode === 'ai' && <p className="muted">Commands are sent to OpenAI for interpretation.</p>}
+    </div>}
     <details className="command-examples">
       <summary>Example commands</summary>
-      <p className="muted">Use a semicolon between requests to preview up to five changes together.</p>
-      <div className="command-examples-list">{examples.map(example => <button className="secondary-button" key={example} type="button"
+      <p className="muted">{mode === 'ai' ? 'Combine up to five changes in one request.' : 'Use a semicolon between requests to preview up to five changes together.'}</p>
+      <div className="command-examples-list">{(mode === 'ai' ? ['Add bananas and remind me to shop tomorrow', ...examples] : examples).map(example => <button className="secondary-button" key={example} type="button"
         disabled={busy || !!preview} onClick={() => { setText(example); field.current?.focus() }}>{example}</button>)}</div>
     </details>
     {feedback && <p className="command-feedback" role="status">{feedback}</p>}
